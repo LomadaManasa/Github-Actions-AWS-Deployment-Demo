@@ -3,7 +3,7 @@ name: Deploy Python Lambda
 on:
   push:
     branches:
-      - main  # Deploy only from the main branch
+      - Demo  # Deploy only from the main branch
 
 jobs:
   deploy:
