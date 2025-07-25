@@ -40,5 +40,5 @@ jobs:
       - name: Deploy Lambda function
         run: |
           aws lambda update-function-code \
-            --function-name GithubActionsDemo \  # 🔁 Replace with your Lambda name
-            --zip-file fileb://lambda_function.zip
+            --function-name GithubActionsDemo \ 
+            --zip-file fileb://api.zip
