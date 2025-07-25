@@ -1,98 +1,44 @@
-name: CI/CD Pipeline
+name: Deploy Python Lambda
 
 on:
   push:
-    branches: [ main ]
-
+    branches:
+      - main  # Deploy only from the main branch
 
 jobs:
-
-  continuous-integration:
+  deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v2
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: Set up Python all python version
-        uses: actions/setup-python@v2
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          python-version: 3.7
-          architecture: x64
+          python-version: '3.9'
 
-      - name: Install Python Virtual ENV
-        run: pip3 install virtualenv
-
-      - name:  Setup Virtual env
-        uses: actions/cache@v2
-        id: cache-venv
-        with:
-          path: venv
-          key: ${{ runner.os }}-venv-${{ hashFiles('**/requirements*.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-venv-
-
-      - name: Activate and Install Depencies into Virtual env
-        run: python -m venv venv && source venv/bin/activate &&
-          pip3 install -r requirements.txt
-        if: steps.cache-venv.outputs.cache-hit != 'true'
-
-
-      # Install all the app dependencies
-      - name: Install dependencies
-        run: pip3 install -r requirements.txt
-
-
-      # Build the app and run tests
-      - name: Build and Run Test
-        run: . venv/bin/activate && pytest
-
-      - name: Create Zipfile archive of Dependencies
+      - name: Install dependencies and package Lambda
         run: |
-          cd ./venv/lib/python3.7/site-packages
-          zip -r9 ../../../../api.zip .
+          pip install --target package -r requirements.txt
+      - name: Add App Code to Package Dir
+        run: |
+          cp -r app/* package/
 
-      - name: Add App to Zipfile
-        run: cd ./app && zip -g ../api.zip -r .
+      - name: Zip All Files
+        run: |
+          cd package
+          zip -r ../api.zip .
 
-      - name: Upload zip file artifact
-        uses: actions/upload-artifact@v2
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          name: api
-          path: api.zip
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1  # 🔁 Replace if using a different region
 
-
-  continuous-deployment:
-    runs-on: ubuntu-latest
-    needs: [continuous-integration]
-    if: github.ref == 'refs/heads/main'
-    steps:
-
-      - name: Install AWS CLI
-        uses: unfor19/install-aws-cli-action@v1
-        with:
-          version: 1
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
-
-      - name: Download Lambda api.zip
-        uses: actions/download-artifact@v2
-        with:
-          name: api
-
-      - name: Upload to S3
-        run: aws s3 cp api.zip s3://medium-aws-fastapi/api.zip
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
-
-      - name: Deploy new Lambda
-        run: aws lambda update-function-code --function-name serverless-ai --s3-bucket medium-aws-fastapi --s3-key api.zip
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
-
-
+      - name: Deploy Lambda function
+        run: |
+          aws lambda update-function-code \
+            --function-name YOUR_LAMBDA_FUNCTION_NAME \  # 🔁 Replace with your Lambda name
+            --zip-file fileb://lambda_function.zip
